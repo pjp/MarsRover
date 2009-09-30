@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    Document   : build.xml
+    Created on : 04 June 2009
+    Author     : Paul Pearce
+    Description:
+        Purpose of the document follows.
+-->
+<project name="MarsRover" default="jar"  basedir=".">
+  <property name="app.name"     value="MarsRover"/>
+  <property name="reports.dir"  value="reports" />
+  <property name="instr"        value="${basedir}/instr" />
+  <property name="coverage.dir" value="${reports.dir}/coverage" />
+  <property name="pmd.dir"      value="${reports.dir}/pmd" />
+  <property name="junit.dir"    value="${reports.dir}/junit" />
+  <property name="javadocs.dir" value="${reports.dir}/javadocs" />
+
+  <condition property="onUnix" value="unix_">
+    <os family="unix"/>
+  </condition>
+  <condition property="onUnix" value="">
+    <not>
+      <os family="unix"/>
+    </not>
+  </condition>
+
+  <property file="${onUnix}project.properties"/>
+  <property file="${user.home}/build.properties"/>
+
+  <path id="build-classpath">
+    <fileset dir="${local.lib.dir}">
+      <include name="log4j.jar"/>
+      <include name="junit.jar"/>
+      <include name="emma.jar"/>
+      <include name="emma_ant.jar"/>
+      <include name="pmd-1.9.jar"/>
+      <include name="jaxen-core-1.0-fcs.jar"/>
+      <include name="saxpath-1.0-fcs.jar"/>
+    </fileset>
+  </path>
+
+  <path id="built-classes">
+    <pathelement path="build/classes"/>
+  </path>
+
+  <target name="init">
+    <mkdir dir="build/classes"/>
+    <mkdir dir="dist"/>
+    <mkdir dir="${junit.dir}"/>
+  </target>
+
+  <target name="clean">
+    <delete dir="build"/>
+    <delete dir="dist"/>
+    <delete dir="reports"/>
+    <delete dir="${instr}"/>
+  </target>
+
+
+  <target name="compile" depends="init">
+    <javac destdir="build/classes" 
+		   deprecation="on"
+		   failonerror="true"
+       debug="true">
+      <src path="src"/>
+      <src path="test"/>
+      <classpath refid="build-classpath"/>
+    </javac>
+  </target>
+
+
+  <target name="jar" depends="compile">
+    <jar destfile="dist/${app.name}.jar">
+      <fileset dir="build/classes">
+        <exclude name="**/*Test*.class"/>
+        <include name="**/*.class"/>
+      </fileset>
+      <fileset dir="src">
+        <exclude name="conf/**"/>
+        <include name="**/*.xml"/>
+      </fileset>
+    </jar>
+		<copy file="dist/${app.name}.jar" 
+          overwrite="true" 
+          flatten="true"
+	        todir="${deployDir}"/>
+  </target>
+  
+  <target name ="test" depends="run-tests, pmd">
+		<junitreport todir="${junit.dir}">
+		  <fileset dir="${junit.dir}">
+		    <include name="TEST-*.xml"/>
+		  </fileset>
+		  <report format="frames" todir="${junit.dir}/html/"/>
+		</junitreport>
+  </target>
+  
+	<target name="run-tests" depends="compile, code.instrument" description="run your test suite" >
+        <delete>
+            <fileset dir="${basedir}">
+                <include name="*.log"/>
+            </fileset>
+        </delete>
+		<junit printsummary="yes" haltonfailure="yes" showoutput="yes" >
+          <jvmarg value="-Demma.coverage.out.file=${coverage.dir}/coverage.emma" />
+          <jvmarg value="-Demma.coverage.out.merge=true" />
+          <classpath>
+            <pathelement location="${instr}" />
+            <path refid="built-classes" />
+            <path refid="build-classpath" />
+          </classpath>
+      		
+ 		  <batchtest fork="yes" todir="${junit.dir}">
+		  	<formatter type="xml"/>
+		    <fileset dir="test">
+		      <include name="**/*Test*.java"/>
+		    </fileset>
+		  </batchtest>
+		</junit>	
+	</target>
+
+   <target name="pmd"
+           depends="init"
+           description="Runs a set of static code analysis rules on source code.">
+       <taskdef name="pmd" classname="net.sourceforge.pmd.ant.PMDTask" classpathref="build-classpath"/>
+	   <mkdir dir="${pmd.dir}"/>
+       <pmd rulesetfiles="rulesets/unusedcode.xml,
+                          rulesets/basic.xml,
+                          rulesets/design.xml,
+                          rulesets/imports.xml,
+                          rulesets/strings.xml,
+                          rulesets/codesize.xml,
+                          rulesets/naming.xml,
+                          rulesets/braces.xml,
+                          rulesets/strictexception.xml,
+                          rulesets/finalizers.xml">
+           <formatter  type="xml" toFile="${pmd.dir}/pmd_report.xml"/>
+           <formatter type="html" toFile="${pmd.dir}/pmd_report.html"/>
+           <fileset dir="src">
+               <include name="**/*.java"/>
+           </fileset>
+       </pmd>
+       <echo>Outputs will be in ${pmd.dir}/pmd_report.[xml|html]</echo>
+   </target>
+
+	<target name="code.coverage"
+	        description="Turns on EMMA instrumentation/reporting">
+	   <delete dir="${instr}"/>
+		<mkdir dir="${coverage.dir}" />
+		<taskdef resource="emma_ant.properties" classpathref="build-classpath"/>
+		<property name="emma.enabled" value="true" />
+		<property name="out.instr.dir" value="${instr}" />
+		<echo message="Enabling code coverage using emma"/>
+	</target>
+
+	<target name="code.instrument" if="emma.enabled"
+	        description="Instrument the code for code coverage reports">
+		<emma>
+			<instr instrpathref="built-classes"
+			       destdir="${out.instr.dir}"
+					 metadatafile="${coverage.dir}/metadata.emma"
+					 merge="true"
+                     mode="copy">
+              <filter excludes="com.controlq.*Test*" />
+            </instr>
+
+		</emma>
+	</target>
+
+	<target name="code.coverage.reports"
+	        description="Produce code coverage reports">
+		<taskdef resource="emma_ant.properties" classpathref="build-classpath"/>
+		<emma>
+			<report sourcepath="src">
+				<fileset dir="${coverage.dir}">
+					<include name="*.emma"/>
+				</fileset>
+				<html outfile="${coverage.dir}/coverage.html"/>
+			</report>
+		</emma>
+	</target>
+    
+    <target name="javadoc"
+            description="Produce the java documentation">
+        <javadoc
+            classpathref="build-classpath"
+            packagenames="com.controlq"
+            access="package"
+            destdir="${javadocs.dir}"
+            author="true"
+            version="true"
+            use="true"           
+            windowtitle="com.controlq*">
+            <fileset dir="src"
+                     defaultexcludes="yes">
+                <exclude name="**/*Test.java" />
+                <include name="**/*.java"/>
+            </fileset>
+        </javadoc>
+    </target>
+</project>

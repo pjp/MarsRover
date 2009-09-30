@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+
+  <!--  Console Appender -->
+  <appender name="STDOUT" class="org.apache.log4j.ConsoleAppender">
+    <layout class="org.apache.log4j.PatternLayout">
+      <param name="ConversionPattern" value="%d %-5p [%l] %m%n" />
+    </layout>
+  </appender>
+
+  <!-- File Appender -->
+  <appender name="FILEOUT" class="org.apache.log4j.FileAppender">
+    <param name="File" value="marsrover.log" />
+    <param name="Append" value="true" />
+    <layout class="org.apache.log4j.PatternLayout">
+      <param name="ConversionPattern" value="%d %-5p [%l] %m%n" />
+    </layout>
+  </appender>
+  
+  <logger name="com.controlq" additivity="false">
+    <level value="INFO" />
+    <appender-ref ref="FILEOUT" />
+  </logger>
+
+  <root>
+    <level value="ERROR" />
+    <appender-ref ref="FILEOUT" />
+  </root>
+
+</log4j:configuration>
+
